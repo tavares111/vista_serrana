@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Calculadora Água - Condômino</title>
   <style>
-    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; padding: 20px; background:#f7fafc; color:#0f172a; }
-    .card { background:white; border-radius:12px; padding:18px; box-shadow: 0 6px 20px rgba(2,6,23,0.08); max-width:820px; margin:0 auto; }
+    body { font-family: Inter, system-ui, Arial; padding: 20px; background:#f7fafc; color:#0f172a; }
+    .card { background:white; border-radius:12px; padding:18px; box-shadow:0 6px 20px rgba(2,6,23,0.08); max-width:860px; margin:0 auto; }
     h1 { font-size:20px; margin:0 0 12px; }
     label { display:block; font-size:13px; margin-top:10px; color:#334155; }
     input[type=number] { width:160px; padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; margin-top:6px; }
@@ -18,12 +18,13 @@
     small { color:#475569; }
     .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
     @media (max-width:640px){ .grid2{ grid-template-columns:1fr } input[type=number]{ width:100% } }
+    hr { margin:12px 0; border:none; border-top:1px solid #e2e8f0 }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>Calculadora - Água (condomínio)</h1>
-    <p class="muted">Compare <strong>Tarifa mínima</strong> vs <strong>Tarifa ajustada (progressiva)</strong> e veja quanto paga a unidade (rateio proporcional).</p>
+    <p class="muted">Compare: <strong>Tarifa mínima</strong>, <strong>Tarifa cobrada pela imobiliária</strong> e <strong>Tarifa correta (progressiva)</strong>.</p>
 
     <label>Consumo total do condomínio (m³)
       <input id="totalVolume" type="number" min="0" step="0.01" value="820">
@@ -31,29 +32,33 @@
 
     <div class="grid2">
       <div>
-        <label>Tarifa mínima (R$/m³) — aplicado ao total (ex.: Conta mínima)
+        <label>Tarifa mínima (R$/m³)
           <input id="tarifaMin" type="number" step="0.0001" value="4.3298">
         </label>
       </div>
       <div>
-        <label>LIMITE da primeira faixa (m³)
-          <input id="limiteFaixa" type="number" step="1" value="810">
+        <label>Tarifa cobrada pela imobiliária (R$/m³ fixo)
+          <input id="tarifaFixo" type="number" step="0.0001" value="4.96">
         </label>
       </div>
     </div>
 
     <div class="grid2">
       <div>
-        <label>Tarifa para até o limite (R$/m³) — tarifa "810"
-          <input id="tarifaFaixa" type="number" step="0.0001" value="4.9603">
+        <label>LIMITE da primeira faixa (m³)
+          <input id="limiteFaixa" type="number" step="1" value="810">
         </label>
       </div>
       <div>
-        <label>Tarifa para excedente (R$/m³)
+        <label>Tarifa excedente (R$/m³)
           <input id="tarifaExcedente" type="number" step="0.0001" value="10.9126">
         </label>
       </div>
     </div>
+
+    <label>Tarifa até o limite (R$/m³)
+      <input id="tarifaFaixa" type="number" step="0.0001" value="4.9603">
+    </label>
 
     <label>Consumo da unidade (m³)
       <input id="consumoUnidade" type="number" min="0" step="0.01" value="13">
@@ -61,78 +66,57 @@
 
     <div class="row">
       <button id="btnCalc">Calcular</button>
-      <small>Os cálculos consideram apenas água (você pode estender para esgoto se quiser).</small>
     </div>
 
-    <div id="results" class="result" aria-live="polite">
-      <div><span class="muted">Tarifa mínima (todo o volume à tarifa mínima):</span></div>
-      <div class="big" id="min_total">R$ 0,00</div>
-      <div class="muted">O que a unidade paga (proporcional): <span id="min_unit">R$ 0,00</span></div>
-
-      <hr style="margin:12px 0; border:none; border-top:1px solid #e2e8f0">
-
-      <div><span class="muted">Tarifa ajustada (progressiva por blocos):</span></div>
-      <div class="muted" id="progressive_detail"></div>
-      <div class="big" id="adj_total">R$ 0,00</div>
-      <div class="muted">O que a unidade paga (proporcional): <span id="adj_unit">R$ 0,00</span></div>
-
-      <div style="margin-top:10px" id="delta"></div>
-    </div>
+    <div id="results" class="result" aria-live="polite"></div>
   </div>
 
   <script>
-    function fmtBRL(v){
-      return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    }
+    function fmtBRL(v){ return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
 
     function calcAll(){
-      // read inputs
-      const total = parseFloat(document.getElementById('totalVolume').value) || 0;
-      const tarifaMin = parseFloat(document.getElementById('tarifaMin').value) || 0;
-      const limite = parseFloat(document.getElementById('limiteFaixa').value) || 810;
-      const tarifaFaixa = parseFloat(document.getElementById('tarifaFaixa').value) || 0;
-      const tarifaExc = parseFloat(document.getElementById('tarifaExcedente').value) || 0;
-      const consumoUn = parseFloat(document.getElementById('consumoUnidade').value) || 0;
+      const total = parseFloat(document.getElementById('totalVolume').value)||0;
+      const tarifaMin = parseFloat(document.getElementById('tarifaMin').value)||0;
+      const tarifaFixo = parseFloat(document.getElementById('tarifaFixo').value)||0;
+      const limite = parseFloat(document.getElementById('limiteFaixa').value)||810;
+      const tarifaFaixa = parseFloat(document.getElementById('tarifaFaixa').value)||0;
+      const tarifaExc = parseFloat(document.getElementById('tarifaExcedente').value)||0;
+      const consumoUn = parseFloat(document.getElementById('consumoUnidade').value)||0;
 
-      // Tarifa mínima scenario: entire volume at tarifaMin
+      const prop = total>0 ? consumoUn/total : 0;
+
+      // 1. Tarifa mínima
       const totalMin = total * tarifaMin;
-      // Tarifa ajustada (progressiva): up to limite at tarifaFaixa, remainder at tarifaExc
-      const volFaixa = Math.min(total, limite);
-      const volExc = Math.max(0, total - limite);
-      const costFaixa = volFaixa * tarifaFaixa;
-      const costExc = volExc * tarifaExc;
-      const totalAdj = costFaixa + costExc;
-
-      // rateio proporcional (avoid div by 0)
-      const prop = total > 0 ? consumoUn / total : 0;
       const unitMin = totalMin * prop;
-      const unitAdj = totalAdj * prop;
 
-      // update UI
-      document.getElementById('min_total').textContent = fmtBRL(totalMin);
-      document.getElementById('min_unit').textContent = fmtBRL(unitMin);
+      // 2. Tarifa cobrada pela imobiliária (fixa)
+      const totalFixo = total * tarifaFixo;
+      const unitFixo = totalFixo * prop;
 
-      const detailEl = document.getElementById('progressive_detail');
-      detailEl.textContent = `${volFaixa.toFixed(2)} m³ × ${tarifaFaixa.toFixed(4)} + ${volExc.toFixed(2)} m³ × ${tarifaExc.toFixed(4)} ` +
-                             `= ${fmtBRL(costFaixa)} + ${fmtBRL(costExc)}`;
+      // 3. Tarifa correta (progressiva)
+      const volFaixa = Math.min(total, limite);
+      const volExc = Math.max(0,total-limite);
+      const totalAdj = volFaixa*tarifaFaixa + volExc*tarifaExc;
+      const unitAdj = totalAdj*prop;
 
-      document.getElementById('adj_total').textContent = fmtBRL(totalAdj);
-      document.getElementById('adj_unit').textContent = fmtBRL(unitAdj);
-
-      // delta
-      const deltaTotal = totalAdj - totalMin;
-      const deltaUnit = unitAdj - unitMin;
-      const deltaEl = document.getElementById('delta');
-      deltaEl.innerHTML = `<small class="muted">Diferença total (Ajustada − Mínima): <strong>${fmtBRL(deltaTotal)}</strong> — diferença para a unidade: <strong>${fmtBRL(deltaUnit)}</strong></small>`;
+      // Monta HTML resultado
+      document.getElementById('results').innerHTML = `
+        <div><span class="muted">1) Tarifa mínima:</span></div>
+        <div class="big">${fmtBRL(totalMin)} (Unidade: ${fmtBRL(unitMin)})</div>
+        <hr>
+        <div><span class="muted">2) Tarifa cobrada pela imobiliária (fixo):</span></div>
+        <div class="big">${fmtBRL(totalFixo)} (Unidade: ${fmtBRL(unitFixo)})</div>
+        <small class="muted">Diferença em relação à correta: Total ${fmtBRL(totalFixo-totalAdj)} | Unidade ${fmtBRL(unitFixo-unitAdj)}</small>
+        <hr>
+        <div><span class="muted">3) Tarifa correta (progressiva):</span></div>
+        <div class="big">${fmtBRL(totalAdj)} (Unidade: ${fmtBRL(unitAdj)})</div>
+        <small class="muted">Cálculo: ${volFaixa.toFixed(2)} m³ × ${tarifaFaixa} + ${volExc.toFixed(2)} m³ × ${tarifaExc}</small>
+      `;
     }
 
-    // wire up inputs: calculate on button and also on change for instant feedback
     document.getElementById('btnCalc').addEventListener('click', calcAll);
-    ['totalVolume','tarifaMin','limiteFaixa','tarifaFaixa','tarifaExcedente','consumoUnidade'].forEach(id=>{
-      document.getElementById(id).addEventListener('input', calcAll);
-    });
-
-    // initial calc
+    ['totalVolume','tarifaMin','tarifaFixo','limiteFaixa','tarifaFaixa','tarifaExcedente','consumoUnidade']
+      .forEach(id=>document.getElementById(id).addEventListener('input', calcAll));
     calcAll();
   </script>
 </body>
